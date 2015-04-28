@@ -55,7 +55,8 @@ public class JpegParser extends AbstractParser {
         TemporaryResources tmp = new TemporaryResources();
         try {
             TikaInputStream tis = TikaInputStream.get(stream, tmp);
-            new ImageMetadataExtractor(metadata).parseJpeg(tis.getFile());
+            // new ImageMetadataExtractor(metadata)
+            //     .parseJpeg(tis.getFile());
             new JempboxExtractor(metadata).parse(tis);
         } finally {
             tmp.dispose();
