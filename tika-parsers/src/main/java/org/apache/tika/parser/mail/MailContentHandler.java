@@ -18,6 +18,10 @@ package org.apache.tika.parser.mail;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.lang.ArrayIndexOutOfBoundsException;
+
 
 import org.apache.james.mime4j.MimeException;
 import org.apache.james.mime4j.codec.DecodeMonitor;
@@ -32,6 +36,9 @@ import org.apache.james.mime4j.dom.field.MailboxListField;
 import org.apache.james.mime4j.dom.field.ParsedField;
 import org.apache.james.mime4j.dom.field.UnstructuredField;
 import org.apache.james.mime4j.field.LenientFieldParser;
+import org.apache.james.mime4j.field.contentdisposition.parser.ContentDispositionParser;
+import org.apache.james.mime4j.field.ContentDispositionFieldLenientImpl;
+
 import org.apache.james.mime4j.parser.ContentHandler;
 import org.apache.james.mime4j.stream.BodyDescriptor;
 import org.apache.james.mime4j.stream.Field;
@@ -46,6 +53,7 @@ import org.apache.tika.parser.Parser;
 import org.apache.tika.sax.XHTMLContentHandler;
 import org.xml.sax.SAXException;
 
+
 /**
  * Bridge between mime4j's content handler and the generic Sax content handler
  * used by Tika. See
@@ -58,6 +66,8 @@ class MailContentHandler implements ContentHandler {
     private XHTMLContentHandler handler;
     private Metadata metadata;
     private EmbeddedDocumentExtractor extractor;
+    private static final String ATTACHMENTMETADATANAME = "X-Attachments";
+
 
     private boolean inPart = false;
 
@@ -158,14 +168,58 @@ class MailContentHandler implements ContentHandler {
     public void field(Field field) throws MimeException {
         // inPart indicates whether these metadata correspond to the
         // whole message or its parts
-        if (inPart) {
-            return;
-        }
 
         try {
             String fieldname = field.getName();
             ParsedField parsedField = LenientFieldParser.getParser().parse(
                     field, DecodeMonitor.SILENT);
+
+
+            if (inPart) {
+                if (fieldname.equalsIgnoreCase("Content-Disposition")){
+                    // then it's an attachment
+                    ContentDispositionFieldLenientImpl contentDispositionField = (ContentDispositionFieldLenientImpl) parsedField;
+                    String attachmentFilename = null;
+                    if(contentDispositionField.getParameter("filename") != null){
+                        System.err.println("got filename");
+                        attachmentFilename = contentDispositionField.getFilename();
+                    }else if(contentDispositionField.getParameter("filename*") != null){
+                        // valid ext-value e.g. "filename*=utf-8''image001.jpg"
+                        // c.f. https://tools.ietf.org/html/rfc2231
+                        String extValueFilename = contentDispositionField.getParameter("filename*");
+
+                        // I don't know why this didn't work.
+                        // someone else is gonna have to know more about Java.
+                        // System.err.println("got filename*: '" + extValueFilename + "'");
+                        // Pattern extValueFilenamePattern = Pattern.compile("[^\']+\'[^\']*\'(.+)");
+                        // Matcher extValueFilenameMatcher = extValueFilenamePattern.matcher(extValueFilename);
+                        // System.err.println(extValueFilenameMatcher.toString());
+                        // try {
+                        //     attachmentFilename = extValueFilenameMatcher.group();
+                        // }catch(Exception e){
+                        //     System.err.println(e.toString());
+                        // }
+                        try {
+                            attachmentFilename = extValueFilename.split("'")[2];
+                        }catch(ArrayIndexOutOfBoundsException e){
+                            attachmentFilename = null;
+                        }
+                    }
+
+                    if(attachmentFilename != null){
+                        String attachments = metadata.get(ATTACHMENTMETADATANAME);
+                        if(attachments == null){
+                            attachments = attachmentFilename;
+                        }else{
+                            attachments = attachments + "|" + attachmentFilename;
+                        }
+                        metadata.set(ATTACHMENTMETADATANAME, attachments);
+                    }
+                }
+                return;
+            }
+
+
             if (fieldname.equalsIgnoreCase("From")) {
                 MailboxListField fromField = (MailboxListField) parsedField;
                 MailboxList mailboxList = fromField.getMailboxList();
