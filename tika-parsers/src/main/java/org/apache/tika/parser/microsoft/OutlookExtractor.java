@@ -69,6 +69,8 @@ public class OutlookExtractor extends AbstractPOIFSExtractor {
     private static final Metadata EMPTY_METADATA = new Metadata();
     HtmlEncodingDetector detector = new HtmlEncodingDetector();
 
+    private static final String ATTACHMENTMETADATANAME = "X-Attachments";
+
     private final MAPIMessage msg;
 
     public OutlookExtractor(NPOIFSFileSystem filesystem, ParseContext context) throws TikaException {
@@ -232,6 +234,17 @@ public class OutlookExtractor extends AbstractPOIFSExtractor {
                 } else if (attachment.attachFileName != null) {
                     filename = attachment.attachFileName.getValue();
                 }
+
+                if(filename != null && filename.length() > 0){
+                    String attachments = metadata.get(ATTACHMENTMETADATANAME);
+                    if(attachments == null){
+                        attachments = filename;
+                    }else{
+                        attachments = attachments + "|" + filename;
+                    }
+                    metadata.set(ATTACHMENTMETADATANAME, attachments);
+                }
+
                 if (filename != null && filename.length() > 0) {
                     xhtml.element("h1", filename);
                 }
