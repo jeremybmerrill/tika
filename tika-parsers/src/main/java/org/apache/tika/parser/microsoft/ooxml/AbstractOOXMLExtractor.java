@@ -98,8 +98,7 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
     }
 
     /**
-     * @see org.apache.tika.parser.microsoft.ooxml.OOXMLExtractor#getXHTML(org.xml.sax.ContentHandler,
-     * org.apache.tika.metadata.Metadata)
+     * @see org.apache.tika.parser.microsoft.ooxml.OOXMLExtractor#getXHTML(ContentHandler, Metadata, ParseContext)
      */
     public void getXHTML(
             ContentHandler handler, Metadata metadata, ParseContext context)
@@ -220,9 +219,9 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
 
         // Open the POIFS (OLE2) structure and process
         POIFSFileSystem fs = new POIFSFileSystem(part.getInputStream());
+        TikaInputStream stream = null;
         try {
             Metadata metadata = new Metadata();
-            TikaInputStream stream = null;
             metadata.set(Metadata.EMBEDDED_RELATIONSHIP_ID, rel);
 
             DirectoryNode root = fs.getRoot();
@@ -230,9 +229,11 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
 
             if (root.hasEntry("CONTENTS")
                     && root.hasEntry("\u0001Ole")
-                    && root.hasEntry("\u0001CompObj")
-                    && root.hasEntry("\u0003ObjInfo")) {
+                    && root.hasEntry("\u0001CompObj")) {
                 // TIKA-704: OLE 2.0 embedded non-Office document?
+                //TODO: figure out if the equivalent of OLE 1.0's
+                //getCommand() and getFileName() exist for OLE 2.0 to populate
+                //TikaCoreProperties.ORIGINAL_RESOURCE_NAME
                 stream = TikaInputStream.get(
                         fs.createDocumentInputStream("CONTENTS"));
                 if (embeddedExtractor.shouldParseEmbedded(metadata)) {
@@ -246,6 +247,12 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
                         Ole10Native.createFromEmbeddedOleObject(fs);
                 if (ole.getLabel() != null) {
                     metadata.set(Metadata.RESOURCE_NAME_KEY, ole.getLabel());
+                }
+                if (ole.getCommand() != null) {
+                    metadata.add(TikaCoreProperties.ORIGINAL_RESOURCE_NAME, ole.getCommand());
+                }
+                if (ole.getFileName() != null) {
+                    metadata.add(TikaCoreProperties.ORIGINAL_RESOURCE_NAME, ole.getFileName());
                 }
                 byte[] data = ole.getDataBuffer();
                 if (data != null) {
@@ -265,6 +272,13 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
             // There was no CONTENTS entry, so skip this part
         } catch (Ole10NativeException e) {
             // Could not process an OLE 1.0 entry, so skip this part
+        } finally {
+            if (fs != null) {
+                fs.close();
+            }
+            if (stream != null) {
+                stream.close();
+            }
         }
     }
 
@@ -288,10 +302,12 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
 
         // Call the recursing handler
         if (embeddedExtractor.shouldParseEmbedded(metadata)) {
-            embeddedExtractor.parseEmbedded(
-                    TikaInputStream.get(part.getInputStream()),
-                    new EmbeddedContentHandler(handler),
-                    metadata, false);
+            try(TikaInputStream tis = TikaInputStream.get(part.getInputStream())) {
+                embeddedExtractor.parseEmbedded(
+                        tis,
+                        new EmbeddedContentHandler(handler),
+                        metadata, false);
+            }
         }
     }
 

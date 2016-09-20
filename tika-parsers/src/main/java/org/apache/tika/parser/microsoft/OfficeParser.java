@@ -143,7 +143,7 @@ public class OfficeParser extends AbstractParser {
                 xhtml.element("p", publisherTextExtractor.getText());
                 break;
             case WORDDOCUMENT:
-                new WordExtractor(context).parse(root, xhtml);
+                new WordExtractor(context, metadata).parse(root, xhtml);
                 break;
             case POWERPOINT:
                 new HSLFExtractor(context).parse(root, xhtml);
@@ -229,7 +229,8 @@ public class OfficeParser extends AbstractParser {
         OUTLOOK("msg", MediaType.application("vnd.ms-outlook")),
         SOLIDWORKS_PART("sldprt", MediaType.application("sldworks")),
         SOLIDWORKS_ASSEMBLY("sldasm", MediaType.application("sldworks")),
-        SOLIDWORKS_DRAWING("slddrw", MediaType.application("sldworks"));
+        SOLIDWORKS_DRAWING("slddrw", MediaType.application("sldworks")),
+        GRAPH("", MediaType.application("vnd.ms-graph"));
 
         private final String extension;
         private final MediaType type;

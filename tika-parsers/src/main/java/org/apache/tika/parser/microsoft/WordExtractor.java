@@ -16,6 +16,8 @@
  */
 package org.apache.tika.parser.microsoft;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,6 +34,8 @@ import org.apache.poi.hwpf.OldWordFileFormatException;
 import org.apache.poi.hwpf.extractor.Word6Extractor;
 import org.apache.poi.hwpf.model.FieldsDocumentPart;
 import org.apache.poi.hwpf.model.PicturesTable;
+import org.apache.poi.hwpf.model.SavedByEntry;
+import org.apache.poi.hwpf.model.SavedByTable;
 import org.apache.poi.hwpf.model.StyleDescription;
 import org.apache.poi.hwpf.usermodel.CharacterRun;
 import org.apache.poi.hwpf.usermodel.Field;
@@ -48,12 +52,12 @@ import org.apache.poi.poifs.filesystem.Entry;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.io.TikaInputStream;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.sax.XHTMLContentHandler;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.AttributesImpl;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class WordExtractor extends AbstractPOIFSExtractor {
 
@@ -79,8 +83,11 @@ public class WordExtractor extends AbstractPOIFSExtractor {
     private boolean curBold;
     private boolean curItalic;
 
-    public WordExtractor(ParseContext context) {
+    private final Metadata metadata;
+
+    public WordExtractor(ParseContext context, Metadata metadata) {
         super(context);
+        this.metadata = metadata;
     }
 
     private static int countParagraphs(Range... ranges) {
@@ -146,6 +153,9 @@ public class WordExtractor extends AbstractPOIFSExtractor {
             parseWord6(root, xhtml);
             return;
         }
+
+        extractSavedByMetadata(document);
+
         org.apache.poi.hwpf.extractor.WordExtractor wordExtractor =
                 new org.apache.poi.hwpf.extractor.WordExtractor(document);
         HeaderStories headerFooter = new HeaderStories(document);
@@ -209,6 +219,16 @@ public class WordExtractor extends AbstractPOIFSExtractor {
                 }
             }
         } catch (FileNotFoundException e) {
+        }
+    }
+
+    private void extractSavedByMetadata(HWPFDocument document) {
+        SavedByTable savedByTable = document.getSavedByTable();
+        if (savedByTable == null) {
+            return;
+        }
+        for (SavedByEntry sbe : savedByTable.getEntries()) {
+            metadata.add(TikaCoreProperties.ORIGINAL_RESOURCE_NAME, sbe.getSaveLocation());
         }
     }
 
@@ -308,7 +328,12 @@ public class WordExtractor extends AbstractPOIFSExtractor {
                     // class="embedded" id="_X"/> so consumer can see where
                     // in the main text each embedded document
                     // occurred:
-                    String id = "_" + field.getMarkSeparatorCharacterRun(r).getPicOffset();
+                    String id = "_unknown_id";
+                    //this can return null (TIKA-1956)
+                    CharacterRun mscr = field.getMarkSeparatorCharacterRun(r);
+                    if (mscr != null) {
+                        id = "_" + mscr.getPicOffset();
+                    }
                     AttributesImpl attributes = new AttributesImpl();
                     attributes.addAttribute("", "class", "class", "CDATA", "embedded");
                     attributes.addAttribute("", "id", "id", "CDATA", id);
@@ -478,9 +503,11 @@ public class WordExtractor extends AbstractPOIFSExtractor {
                 }
 
                 xhtml.startElement("a", "href", url);
+                closeStyleElements(skipStyling, xhtml);
                 for (CharacterRun cr : texts) {
                     handleCharacterRun(cr, skipStyling, xhtml);
                 }
+                closeStyleElements(skipStyling, xhtml);
                 xhtml.endElement("a");
             } else {
                 // Just output the text ones
@@ -503,6 +530,24 @@ public class WordExtractor extends AbstractPOIFSExtractor {
 
         // Tell them how many to skip over
         return i - index;
+    }
+
+    private void closeStyleElements(boolean skipStyling, XHTMLContentHandler xhtml) throws SAXException {
+        if (skipStyling) {
+            return;
+        }
+        if (curStrikeThrough) {
+            xhtml.endElement("s");
+            curStrikeThrough = false;
+        }
+        if (curItalic) {
+            xhtml.endElement("i");
+            curItalic = false;
+        }
+        if (curBold) {
+            xhtml.endElement("b");
+            curBold = false;
+        }
     }
 
     //temporary work around for TIKA-1512

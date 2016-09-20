@@ -31,7 +31,7 @@
 
   <groupId>org.apache.tika</groupId>
   <artifactId>tika-parent</artifactId>
-  <version>1.13-SNAPSHOT</version>
+  <version>1.14-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>Apache Tika parent</name>
@@ -119,8 +119,8 @@
       <id>kkrugler</id>
       <email>kkrugler@apache.org</email>
       <url>http://ken-blog.krugler.org</url>
-      <organization>Bixo Labs</organization>
-      <organizationUrl>http://bixolabs.com</organizationUrl>
+      <organization>Scale Unlimited</organization>
+      <organizationUrl>http://www.scaleunlimited.com</organizationUrl>
       <roles>
         <role>committer</role>
       </roles>
@@ -300,9 +300,11 @@
   <properties>
     <maven.compiler.source>1.7</maven.compiler.source>
     <maven.compiler.target>1.7</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>${project.build.sourceEncoding}</project.reporting.outputEncoding>
-    <commons.compress.version>1.10</commons.compress.version>
-    <commons.io.version>2.4</commons.io.version>
+    <!-- NOTE: sync tukaani version with commons-compress in tika-parsers -->
+    <commons.compress.version>1.12</commons.compress.version>
+    <commons.io.version>2.5</commons.io.version>
     <slf4j.version>1.7.12</slf4j.version>
   </properties>
 
@@ -319,7 +321,7 @@
       <plugin>
         <groupId>de.thetaphi</groupId>
         <artifactId>forbiddenapis</artifactId>
-        <version>2.0</version>
+        <version>2.2</version>
         <configuration>
           <targetVersion>${maven.compiler.target}</targetVersion>
           <internalRuntimeForbidden>true</internalRuntimeForbidden>
@@ -348,25 +350,25 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>2.18.1</version>
+        <version>2.18.1</version> <!-- versions greater than this don't like System.exit calls in tika-batch -->
         <configuration>
-          <argLine>-Xmx2048m</argLine>
+          <argLine>-Xmx2048m -Duser.timezone=UTC</argLine>
         </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>2.3</version>
+        <version>2.4.3</version>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-release-plugin</artifactId>
-        <version>2.4.2</version>
+        <version>2.5.3</version>
         <dependencies>
          <dependency>
            <groupId>org.apache.maven.scm</groupId>
            <artifactId>maven-scm-provider-gitexe</artifactId>
-           <version>1.8.1</version>
+           <version>1.9.5</version>
          </dependency>
        </dependencies>
       </plugin>

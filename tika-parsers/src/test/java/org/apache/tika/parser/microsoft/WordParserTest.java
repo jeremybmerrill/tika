@@ -21,6 +21,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import org.apache.log4j.Level;
@@ -363,7 +365,7 @@ public class WordParserTest extends TikaTest {
 
     @Test
     public void testControlCharacter() throws Exception {
-        assertContains("1. Introduzione<b> </a></b> </p>", getXML("testControlCharacters.doc").xml.replaceAll("\\s+", " "));
+        assertContains("1. Introduzione<b> </b></a> </p>", getXML("testControlCharacters.doc").xml.replaceAll("\\s+", " "));
     }
 
     @Test
@@ -491,6 +493,32 @@ public class WordParserTest extends TikaTest {
         assertEquals(2, managers.length);
         assertEquals("manager1", managers[0]);
         assertEquals("manager2", managers[1]);
+    }
+
+    @Test
+    public void testOrigLocation() throws Exception {
+        Metadata metadata = getXML("testException2.doc").metadata;
+        List<String> values = Arrays.asList(metadata.getValues(TikaCoreProperties.ORIGINAL_RESOURCE_NAME));
+        assertContains("C:\\Lab Documents\\Lab Manuals\\Physics 275-6\\276-s00\\07-Force-on-a-current-S00.doc", values);
+        assertContains("Hard Drive:Course Folders:276:276-s00:07-Force-on-a-current-S00", values);
+    }
+
+    @Test
+    public void testOrigSourcePath() throws Exception {
+        Metadata embed1_zip_metadata = getRecursiveMetadata("test_recursive_embedded.doc").get(11);
+        assertContains("C:\\Users\\tallison\\AppData\\Local\\Temp\\embed1.zip",
+                Arrays.asList(embed1_zip_metadata.getValues(TikaCoreProperties.ORIGINAL_RESOURCE_NAME)));
+        assertContains("C:\\Users\\tallison\\Desktop\\tmp\\New folder (2)\\embed1.zip",
+                Arrays.asList(embed1_zip_metadata.getValues(TikaCoreProperties.ORIGINAL_RESOURCE_NAME)));
+    }
+
+    @Test
+    public void testBoldHyperlink() throws Exception {
+        //TIKA-1255
+        String xml = getXML("testWORD_boldHyperlink.doc").xml;
+        xml = xml.replaceAll("\\s+", " ");
+        assertContains("<a href=\"http://tika.apache.org/\">hyper <b>link</b></a>", xml);
+        assertContains("<a href=\"http://tika.apache.org/\"><b>hyper</b> link</a>; bold" , xml);
     }
 }
 
