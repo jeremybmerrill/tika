@@ -42,6 +42,11 @@ public class TesseractOCRConfig implements Serializable{
 
 	private static final long serialVersionUID = -4861942486845757891L;
 
+	public enum OUTPUT_TYPE {
+		TXT,
+		HOCR
+	}
+
 	// Path to tesseract installation folder, if not on system path.
 	private  String tesseractPath = "";
 
@@ -62,6 +67,9 @@ public class TesseractOCRConfig implements Serializable{
 
 	// Maximum time (seconds) to wait for the ocring process termination
 	private int timeout = 120;
+	
+	// The format of the ocr'ed output to be returned, txt or hocr.
+	private OUTPUT_TYPE outputType = OUTPUT_TYPE.TXT;
 
 	// enable image processing (optional)
 	private int enableImageProcessing = 0;
@@ -135,7 +143,13 @@ public class TesseractOCRConfig implements Serializable{
 				getProp(props, "maxFileSizeToOcr", getMaxFileSizeToOcr()));
 		setTimeout(
                 getProp(props, "timeout", getTimeout()));
-		
+		String outputTypeString = props.getProperty("outputType");
+		if ("txt".equals(outputTypeString)) {
+			setOutputType(OUTPUT_TYPE.TXT);
+		} else if ("hocr".equals(outputTypeString)) {
+			setOutputType(OUTPUT_TYPE.HOCR);
+		}
+
 		// set parameters for ImageMagick
 		setEnableImageProcessing(
 				getProp(props, "enableImageProcessing", isEnableImageProcessing()));
@@ -261,8 +275,21 @@ public class TesseractOCRConfig implements Serializable{
 	public int getTimeout() {
 		return timeout;
 	}	
+	
+	/**
+	 * Set output type from ocr process.  Default is "txt", but can be "hocr".
+	 * Default value is 120s.
+	 */
+	public void setOutputType(OUTPUT_TYPE outputType) {
+		this.outputType = outputType;
+	}
 
-	/** @see #setEnableImageProcessing(boolean)
+	/** @see #setOutputType(OUTPUT_TYPE outputType) */
+	public OUTPUT_TYPE getOutputType() {
+		return outputType;
+	}	
+
+	/** @see #setEnableImageProcessing(int)
 	 * @return image processing is enabled or not */
 	public int isEnableImageProcessing() {
 		return enableImageProcessing;
@@ -393,7 +420,7 @@ public class TesseractOCRConfig implements Serializable{
 	
 	/**
 	 * Set the path to the ImageMagick executable, needed if it is not on system path.
-	 * @param path to ImageMagick file.
+	 * @param ImageMagickPath to ImageMagick file.
 	 */
 	public void setImageMagickPath(String ImageMagickPath) {
 		if(!ImageMagickPath.isEmpty() && !ImageMagickPath.endsWith(File.separator))

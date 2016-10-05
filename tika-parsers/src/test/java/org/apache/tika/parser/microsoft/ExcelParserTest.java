@@ -472,4 +472,17 @@ public class ExcelParserTest extends TikaTest {
         assertContains("1.23456789012345E15", xml);//16 digit number is treated as scientific notation
         assertContains("1.23456789012345E15", xml);//16 digit formula, ditto
     }
+
+    @Test
+    public void testMacros() throws  Exception {
+        Metadata minExpected = new Metadata();
+        minExpected.add(RecursiveParserWrapper.TIKA_CONTENT.getName(), "Sub Dirty()");
+        minExpected.add(RecursiveParserWrapper.TIKA_CONTENT.getName(), "dirty dirt dirt");
+        minExpected.add(Metadata.CONTENT_TYPE, "text/x-vbasic");
+        minExpected.add(TikaCoreProperties.EMBEDDED_RESOURCE_TYPE,
+                TikaCoreProperties.EmbeddedResourceType.MACRO.toString());
+
+        assertContainsAtLeast(minExpected, getRecursiveMetadata("testEXCEL_macro.xls"));
+    }
+
 }

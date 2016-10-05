@@ -21,10 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
-import java.io.BufferedReader;
-import java.io.File;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.List;
 
 import org.apache.tika.TikaTest;
@@ -126,12 +123,44 @@ public class TesseractOCRParserTest extends TikaTest {
         };
         testBasicOCR(resource, nonOCRContains, 3);
     }
+    
+    @Test
+    public void testOCROutputsHOCR() throws Exception {
+        assumeTrue(canRun());
 
-    private void testBasicOCR(String resource, String[] nonOCRContains, int numMetadatas) throws Exception {
+        String resource = "/test-documents/testOCR.pdf";
+
+        String[] nonOCRContains = new String[0];
+        String contents = runOCR(resource, nonOCRContains, 2,
+                BasicContentHandlerFactory.HANDLER_TYPE.XML,
+                TesseractOCRConfig.OUTPUT_TYPE.HOCR);
+
+        assertContains("<span class=\"ocrx_word\" id=\"word_1_1\"", contents);
+        assertContains("Happy</span>", contents);
+
+    }
+
+    private void testBasicOCR(String resource, String[] nonOCRContains, int numMetadatas) throws Exception{
+    	String contents = runOCR(resource, nonOCRContains, numMetadatas,
+                BasicContentHandlerFactory.HANDLER_TYPE.TEXT, TesseractOCRConfig.OUTPUT_TYPE.TXT);
+        if (canRun()) {
+        	if(resource.substring(resource.lastIndexOf('.'), resource.length()).equals(".jpg")) {
+        		assertTrue(contents.toString().contains("Apache"));
+        	} else {
+        		assertTrue(contents.toString().contains("Happy New Year 2003!"));
+        	}
+        }
+    }
+    
+    private String runOCR(String resource, String[] nonOCRContains, int numMetadatas,
+                          BasicContentHandlerFactory.HANDLER_TYPE handlerType,
+                          TesseractOCRConfig.OUTPUT_TYPE outputType) throws Exception {
         TesseractOCRConfig config = new TesseractOCRConfig();
+        config.setOutputType(outputType);
+        
         Parser parser = new RecursiveParserWrapper(new AutoDetectParser(),
                 new BasicContentHandlerFactory(
-                        BasicContentHandlerFactory.HANDLER_TYPE.TEXT, -1));
+                        handlerType, -1));
 
         PDFParserConfig pdfConfig = new PDFParserConfig();
         pdfConfig.setExtractInlineImages(true);
@@ -151,13 +180,7 @@ public class TesseractOCRParserTest extends TikaTest {
         for (Metadata m : metadataList) {
             contents.append(m.get(RecursiveParserWrapper.TIKA_CONTENT));
         }
-        if (canRun()) {
-        	if(resource.substring(resource.lastIndexOf('.'), resource.length()).equals(".jpg")) {
-        		assertTrue(contents.toString().contains("Apache"));
-        	} else {
-        		assertTrue(contents.toString().contains("Happy New Year 2003!"));
-        	}
-        }
+ 
         for (String needle : nonOCRContains) {
             assertContains(needle, contents.toString());
         }
@@ -165,6 +188,8 @@ public class TesseractOCRParserTest extends TikaTest {
         assertTrue(metadataList.get(1).names().length > 10);
         //test at least one value
         assertEquals("deflate", metadataList.get(1).get("Compression CompressionTypeName"));
+        
+        return contents.toString();
     }
 
     @Test

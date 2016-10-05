@@ -1,5 +1,21 @@
 Release 1.14 - ???
 
+  * Extract PDF DocInfo metadata into separate keys to prevent
+    overwriting by XMP metadata (TIKA-2057).
+
+  * Re-enable fileUrl for tika-server (TIKA-2081).  If you choose,
+    to use this feature, beware of the security vulnerabilities!
+    See: https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2015-3271
+
+  * Add Tesseract's hOCR output format as an option, via Eric Pugh
+    (TIKA-2093)
+
+  * Extract macros from MSOffice files (TIKA-2069).
+
+  * Maintain passed-in mime in TXTParser (TIKA-2047).
+
+  * Upgrade to POI.3-15 (TIKA-2013).
+
   * Upgrade to PDFBox 2.0.3 (TIKA-2051).
 
   * Fix hyperlinks with formatting in DOC and DOCX (TIKA-1255
@@ -28,7 +44,7 @@ Release 1.14 - ???
   * Improving accuracy of Tesseract for better extraction of numeric 
     and alphanumeric text from images (TIKA-2021, TIKA-2031).
 
-  * Improve extraction of embedded documents from PPT, PPT and XLSX
+  * Improve extraction of embedded documents from PPT, PPTX and XLSX
     (TIKA-2026).
 
   * Add parser for applefile (AppleSingle) (TIKA-2022).
@@ -41,8 +57,6 @@ Release 1.14 - ???
      * iCal and vCalendar (TIKA-2006)
      * MBOX (TIKA-2042)
      * Stata DTA (TIKA-2064)
-
-  * Upgrade to PDFBox 2.0.2 (TIKA-1996).
 
   * Add configurable maximum threshold for number of events extracted
     from the XMP Media Management Schema in JempboxExtractor (TIKA-1999).

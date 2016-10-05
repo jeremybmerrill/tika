@@ -16,6 +16,8 @@
  */
 package org.apache.tika.parser.microsoft;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -59,8 +61,6 @@ import org.apache.tika.sax.BodyContentHandler;
 import org.apache.tika.sax.EmbeddedContentHandler;
 import org.apache.tika.sax.XHTMLContentHandler;
 import org.xml.sax.SAXException;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Outlook Message Parser.
@@ -267,6 +267,13 @@ public class OutlookExtractor extends AbstractPOIFSExtractor {
             }
         } catch (ChunkNotFoundException e) {
             throw new TikaException("POI MAPIMessage broken - didn't return null on missing chunk", e);
+        } finally {
+            //You'd think you'd want to call msg.close().
+            //Don't do that.  That closes down the file system.
+            //If an msg has multiple msg attachments, some of them
+            //can reside in the same file system.  After the first
+            //child is read, the fs is closed, and the other children
+            //get a java.nio.channels.ClosedChannelException
         }
     }
 
