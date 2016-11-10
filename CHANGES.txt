@@ -1,4 +1,19 @@
-Release 1.14 - ???
+Release 1.15 - ??
+
+  * Allow configuration of timeout for ForkParser (TIKA-2170).
+
+  * Add extraction of .jpx inline images from PDFs (TIKA-2175).
+
+  * Add .jpx, .jp2, .ppm to formats handled by Tesseract (TIKA-2174).
+
+  * Upgrade SQLite "provided" dependency to 3.15.1.
+
+
+Release 1.14 - 10/19/2016
+
+  * Extract all headers from MSG/RFC822 (TIKA-2122).
+
+  * Upgrade metadata-extractor to 2.9.1 (TIKA-2113).
 
   * Extract PDF DocInfo metadata into separate keys to prevent
     overwriting by XMP metadata (TIKA-2057).

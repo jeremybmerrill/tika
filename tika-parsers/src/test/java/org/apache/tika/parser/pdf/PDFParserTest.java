@@ -1266,9 +1266,33 @@ public class PDFParserTest extends TikaTest {
     public void testMaxLength() throws Exception {
         InputStream is = getResourceAsStream("/test-documents/testPDF.pdf");
         String content = new Tika().parseToString(is, new Metadata(), 100);
-
-        assertTrue(content.length() <= 100);
+        assertTrue(content.length() == 100);
+        assertContains("Tika - Content", content);
     }
+
+    @Test
+    public void testConfiguringMoreParams() throws Exception {
+        try (InputStream configIs = getClass().getResourceAsStream("/org/apache/tika/parser/pdf/tika-inline-config.xml")) {
+            assertNotNull(configIs);
+            TikaConfig tikaConfig = new TikaConfig(configIs);
+            AutoDetectParser p = new AutoDetectParser(tikaConfig);
+            //make absolutely certain the functionality works!
+            List<Metadata> metadata = getRecursiveMetadata("testOCR.pdf", p);
+            assertEquals(2, metadata.size());
+            Map<MediaType, Parser> parsers = p.getParsers();
+            Parser composite = parsers.get(MediaType.application("pdf"));
+            Parser pdfParser = ((CompositeParser)composite).getParsers().get(MediaType.application("pdf"));
+            assertTrue(pdfParser instanceof PDFParser);
+            PDFParserConfig pdfParserConfig = ((PDFParser)pdfParser).getPDFParserConfig();
+            assertEquals(new AccessChecker(true), pdfParserConfig.getAccessChecker());
+            assertEquals(true, pdfParserConfig.getExtractInlineImages());
+            assertEquals(false, pdfParserConfig.getExtractUniqueInlineImagesOnly());
+            assertEquals(314159, pdfParserConfig.getOcrDPI());
+            assertEquals(false, pdfParserConfig.getCatchIntermediateIOExceptions());
+        }
+    }
+
+    //TODO: figure out how to test jp2 embedded with OCR
 
     private void assertException(String path, Parser parser, ParseContext context, Class expected) {
         boolean noEx = false;

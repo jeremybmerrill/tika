@@ -57,15 +57,12 @@ import org.apache.james.mime4j.field.ContentDispositionFieldLenientImpl;
 import org.apache.james.mime4j.parser.ContentHandler;
 import org.apache.james.mime4j.stream.BodyDescriptor;
 import org.apache.james.mime4j.stream.Field;
-import org.apache.tika.config.TikaConfig;
 import org.apache.tika.extractor.EmbeddedDocumentExtractor;
-import org.apache.tika.extractor.ParsingEmbeddedDocumentExtractor;
+import org.apache.tika.extractor.EmbeddedDocumentUtil;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
-import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
-import org.apache.tika.parser.Parser;
 import org.apache.tika.sax.XHTMLContentHandler;
 import org.xml.sax.SAXException;
 
@@ -153,29 +150,7 @@ class MailContentHandler implements ContentHandler {
         //  to handle/process the parts/attachments
 
         // Was an EmbeddedDocumentExtractor explicitly supplied?
-        this.extractor = context.get(EmbeddedDocumentExtractor.class);
-
-        // If there's no EmbeddedDocumentExtractor, then try using a normal parser
-        // This will ensure that the contents are made available to the user, so
-        //  the see the text, but without fine-grained control/extraction
-        // (This also maintains backward compatibility with older versions!)
-        if (this.extractor == null) {
-            // If the user gave a parser, use that, if not the default
-            Parser parser = context.get(AutoDetectParser.class);
-            if (parser == null) {
-                parser = context.get(Parser.class);
-            }
-            if (parser == null) {
-                TikaConfig tikaConfig = context.get(TikaConfig.class);
-                if (tikaConfig == null) {
-                    tikaConfig = TikaConfig.getDefaultConfig();
-                }
-                parser = new AutoDetectParser(tikaConfig.getParser());
-            }
-            ParseContext ctx = new ParseContext();
-            ctx.set(Parser.class, parser);
-            extractor = new ParsingEmbeddedDocumentExtractor(ctx);
-        }
+        this.extractor = EmbeddedDocumentUtil.getEmbeddedDocumentExtractor(context);
     }
 
     public void body(BodyDescriptor body, InputStream is) throws MimeException,
@@ -248,6 +223,7 @@ class MailContentHandler implements ContentHandler {
 
         try {
             String fieldname = field.getName();
+
             ParsedField parsedField = LenientFieldParser.getParser().parse(
                     field, DecodeMonitor.SILENT);
 
@@ -333,6 +309,9 @@ class MailContentHandler implements ContentHandler {
                     date = tryOtherDateFormats(field.getBody());
                 }
                 metadata.set(TikaCoreProperties.CREATED, date);
+            } else {
+                metadata.add(Metadata.MESSAGE_RAW_HEADER_PREFIX+parsedField.getName(),
+                        field.getBody());
             }
         } catch (RuntimeException me) {
             if (strictParsing) {

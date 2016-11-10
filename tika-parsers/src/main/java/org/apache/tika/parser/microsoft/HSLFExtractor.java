@@ -17,6 +17,7 @@
 package org.apache.tika.parser.microsoft;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashSet;
 import java.util.List;
 
@@ -39,7 +40,9 @@ import org.apache.poi.hslf.usermodel.HSLFTextShape;
 import org.apache.poi.poifs.filesystem.DirectoryNode;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.tika.exception.TikaException;
+import org.apache.tika.extractor.EmbeddedDocumentUtil;
 import org.apache.tika.io.CloseShieldInputStream;
+import org.apache.tika.io.TaggedIOException;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.mime.MediaType;
@@ -49,8 +52,11 @@ import org.xml.sax.SAXException;
 import org.xml.sax.helpers.AttributesImpl;
 
 public class HSLFExtractor extends AbstractPOIFSExtractor {
-    public HSLFExtractor(ParseContext context) {
+    private final Metadata metadata;
+
+    public HSLFExtractor(ParseContext context, Metadata metadata) {
         super(context);
+        this.metadata = metadata;
     }
 
     protected void parse(
@@ -336,10 +342,18 @@ public class HSLFExtractor extends AbstractPOIFSExtractor {
                     mediaType = pic.getContentType();
                     break;
             }
-
-            handleEmbeddedResource(
-                    TikaInputStream.get(pic.getData()), null, null,
-                    mediaType, xhtml, false);
+            byte[] data = null;
+            try {
+                data = pic.getData();
+            } catch (Exception e) {
+                EmbeddedDocumentUtil.recordException(e, metadata);
+                continue;
+            }
+            try (TikaInputStream picIs = TikaInputStream.get(data)){
+                handleEmbeddedResource(
+                        picIs, null, null,
+                        mediaType, xhtml, false);
+            }
         }
     }
 
@@ -376,8 +390,14 @@ public class HSLFExtractor extends AbstractPOIFSExtractor {
                     attributes.addAttribute("", "id", "id", "CDATA", objID);
                     xhtml.startElement("div", attributes);
                     xhtml.endElement("div");
-
-                    try (TikaInputStream stream = TikaInputStream.get(data.getData())) {
+                    InputStream dataStream = null;
+                    try {
+                        dataStream = data.getData();
+                    } catch (Exception e) {
+                        EmbeddedDocumentUtil.recordException(e, metadata);
+                        continue;
+                    }
+                    try (TikaInputStream stream = TikaInputStream.get(dataStream)) {
                         String mediaType = null;
                         if ("Excel.Chart.8".equals(oleShape.getProgID())) {
                             mediaType = "application/vnd.ms-excel";
@@ -394,6 +414,8 @@ public class HSLFExtractor extends AbstractPOIFSExtractor {
                                     stream, objID, objID,
                                     mediaType, xhtml, false);
                         }
+                    } catch (TaggedIOException e) {
+                        EmbeddedDocumentUtil.recordException(e, metadata);
                     }
                 }
             }

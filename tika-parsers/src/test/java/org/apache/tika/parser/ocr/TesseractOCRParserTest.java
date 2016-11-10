@@ -91,7 +91,7 @@ public class TesseractOCRParserTest extends TikaTest {
         // Assuming that Tesseract is on the path, we should find 5 Parsers that support PNG.
         assumeTrue(canRun());
 
-        assertEquals(5, parser.getSupportedTypes(parseContext).size());
+        assertEquals(8, parser.getSupportedTypes(parseContext).size());
         assertTrue(parser.getSupportedTypes(parseContext).contains(png));
 
         // DefaultParser will now select the TesseractOCRParser.
@@ -244,4 +244,6 @@ public class TesseractOCRParserTest extends TikaTest {
         assertEquals("75", m.get(Metadata.IMAGE_LENGTH));
         assertEquals("72 dots per inch", m.get("Y Resolution"));
     }
+
+    //TODO: add unit tests for jp2/jpx/ppm TIKA-2174
 }
