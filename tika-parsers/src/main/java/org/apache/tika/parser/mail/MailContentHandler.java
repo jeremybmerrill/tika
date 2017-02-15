@@ -21,12 +21,10 @@ import static org.apache.tika.utils.DateUtils.UTC;
 
 import java.io.IOException;
 import java.io.InputStream;
-<<<<<<< HEAD
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.lang.ArrayIndexOutOfBoundsException;
 
-=======
 import java.text.DateFormat;
 import java.text.DateFormatSymbols;
 import java.text.ParseException;
@@ -36,7 +34,6 @@ import java.util.Locale;
 import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
->>>>>>> 07aea36f71c17236782bff0b61855578722d933e
 
 import org.apache.james.mime4j.MimeException;
 import org.apache.james.mime4j.codec.DecodeMonitor;
@@ -234,7 +231,6 @@ class MailContentHandler implements ContentHandler {
                     ContentDispositionFieldLenientImpl contentDispositionField = (ContentDispositionFieldLenientImpl) parsedField;
                     String attachmentFilename = null;
                     if(contentDispositionField.getParameter("filename") != null){
-                        System.err.println("got filename");
                         attachmentFilename = contentDispositionField.getFilename();
                     }else if(contentDispositionField.getParameter("filename*") != null){
                         // valid ext-value e.g. "filename*=utf-8''image001.jpg"
