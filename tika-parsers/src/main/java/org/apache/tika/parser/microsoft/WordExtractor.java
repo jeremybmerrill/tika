@@ -50,6 +50,7 @@ import org.apache.poi.poifs.filesystem.DirectoryEntry;
 import org.apache.poi.poifs.filesystem.DirectoryNode;
 import org.apache.poi.poifs.filesystem.Entry;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
+import org.apache.tika.exception.EncryptedDocumentException;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
@@ -78,6 +79,7 @@ public class WordExtractor extends AbstractPOIFSExtractor {
         fixedParagraphStyles.put("HTML Preformatted", new TagAndStyle("pre", null));
     }
 
+    private final boolean extractDeletedContent;
     // True if we are currently in the named style tag:
     private boolean curStrikeThrough;
     private boolean curBold;
@@ -88,6 +90,7 @@ public class WordExtractor extends AbstractPOIFSExtractor {
     public WordExtractor(ParseContext context, Metadata metadata) {
         super(context);
         this.metadata = metadata;
+        extractDeletedContent = context.get(OfficeParserConfig.class).getIncludeDeletedContent();
     }
 
     private static int countParagraphs(Range... ranges) {
@@ -149,6 +152,8 @@ public class WordExtractor extends AbstractPOIFSExtractor {
         HWPFDocument document;
         try {
             document = new HWPFDocument(root);
+        } catch (org.apache.poi.EncryptedDocumentException e) {
+                throw new EncryptedDocumentException(e);
         } catch (OldWordFileFormatException e) {
             parseWord6(root, xhtml);
             return;
@@ -654,7 +659,11 @@ public class WordExtractor extends AbstractPOIFSExtractor {
      * @return true if character run should be included in extraction.
      */
     private boolean isRendered(final CharacterRun cr) {
-        return cr == null || !cr.isMarkedDeleted();
+        if (cr == null) {
+            return false;
+        }
+        return !cr.isMarkedDeleted() ||
+                (cr.isMarkedDeleted() && extractDeletedContent);
     }
 
     public static class TagAndStyle {

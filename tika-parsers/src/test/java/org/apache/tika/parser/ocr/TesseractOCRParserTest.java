@@ -23,6 +23,8 @@ import static org.junit.Assume.assumeTrue;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.tika.TikaTest;
 import org.apache.tika.metadata.Metadata;
@@ -197,6 +199,16 @@ public class TesseractOCRParserTest extends TikaTest {
         assumeTrue(canRun());
         String xml = getXML("testOCR.jpg").xml;
         assertContains("OCR Testing", xml);
+        //test metadata extraction
+        assertContains("<meta name=\"Image Width\" content=\"136 pixels\" />", xml);
+
+        //TIKA-2169
+        assertContainsCount("<html", xml, 1);
+        assertContainsCount("<title", xml, 1);
+        assertContainsCount("</title", xml, 1);
+        assertContainsCount("<body", xml, 1);
+        assertContainsCount("</body", xml, 1);
+        assertContainsCount("</html", xml, 1);
     }
 
     @Test
@@ -246,4 +258,24 @@ public class TesseractOCRParserTest extends TikaTest {
     }
 
     //TODO: add unit tests for jp2/jpx/ppm TIKA-2174
+
+    @Test
+    public void testInterwordSpacing() throws Exception {
+        assumeTrue(canRun());
+        //default
+        String xml = getXML("testOCR_spacing.png").xml;
+        assertContains("The quick", xml);
+
+        TesseractOCRConfig tesseractOCRConfigconfig = new TesseractOCRConfig();
+        tesseractOCRConfigconfig.setPreserveInterwordSpacing(true);
+        ParseContext parseContext = new ParseContext();
+        parseContext.set(TesseractOCRConfig.class, tesseractOCRConfigconfig);
+
+        //with preserve interwordspacing "on"
+        //allow some flexibility in case Tesseract is computing spaces
+        //somewhat differently in different versions/OS's, etc.
+        xml = getXML("testOCR_spacing.png", parseContext).xml;
+        Matcher m = Pattern.compile("The\\s{5,20}quick").matcher(xml);
+        assertTrue(m.find());
+    }
 }

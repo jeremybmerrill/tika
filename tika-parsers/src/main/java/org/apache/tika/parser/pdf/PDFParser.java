@@ -43,6 +43,7 @@ import org.apache.pdfbox.pdmodel.PDDocumentInformation;
 import org.apache.pdfbox.pdmodel.common.PDMetadata;
 import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
 import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
+import org.apache.poi.util.IOUtils;
 import org.apache.tika.config.Field;
 import org.apache.tika.exception.EncryptedDocumentException;
 import org.apache.tika.exception.TikaException;
@@ -84,6 +85,14 @@ import org.xml.sax.SAXException;
  * the potentially enormous number and size of inline images.  To
  * turn this feature on, see
  * {@link PDFParserConfig#setExtractInlineImages(boolean)}.
+ * <p/>
+ * Please note that tables are not stored as entities within PDFs. It
+ * takes significant computation to identify and then correctly extract
+ * tables from PDFs. As of this writing, the {@link PDFParser} extracts
+ * text within tables, but it does not compute table cell boundaries or
+ * table row boundaries. Please see
+ * <a href="http://tabula.technology/">tabula</a> for one project that
+ * tries to maintain the structure of tables represented in PDFs.
  */
 public class PDFParser extends AbstractParser {
 
@@ -135,7 +144,6 @@ public class PDFParser extends AbstractParser {
 
             metadata.set(Metadata.CONTENT_TYPE, MEDIA_TYPE.toString());
             extractMetadata(pdfDocument, metadata, context);
-
             AccessChecker checker = localConfig.getAccessChecker();
             checker.check(metadata);
             if (handler != null) {
@@ -657,17 +665,31 @@ public class PDFParser extends AbstractParser {
         defaultConfig.setExtractUniqueInlineImagesOnly(extractUniqueInlineImagesOnly);
     }
 
+    @Field
+    void setExtractActions(boolean extractActions) {
+        defaultConfig.setExtractActions(extractActions);
+    }
+
     //can return null!
-    private Document loadDOM(PDMetadata pdMetadata, Metadata parentMetadata, ParseContext context) {
+    private Document loadDOM(PDMetadata pdMetadata, Metadata metadata, ParseContext context) {
         if (pdMetadata == null) {
             return null;
         }
-        try (InputStream is = pdMetadata.exportXMPMetadata()) {
+        InputStream is = null;
+        try {
+            try {
+                is = pdMetadata.exportXMPMetadata();
+            } catch (IOException e) {
+                EmbeddedDocumentUtil.recordEmbeddedStreamException(e, metadata);
+                return null;
+            }
             DocumentBuilder documentBuilder = context.getDocumentBuilder();
             documentBuilder.setErrorHandler((ErrorHandler)null);
             return documentBuilder.parse(is);
         } catch (IOException|SAXException|TikaException e) {
-            EmbeddedDocumentUtil.recordException(e, parentMetadata);
+            EmbeddedDocumentUtil.recordException(e, metadata);
+        } finally {
+            IOUtils.closeQuietly(is);
         }
         return null;
 

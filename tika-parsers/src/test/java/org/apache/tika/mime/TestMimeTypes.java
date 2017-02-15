@@ -470,12 +470,12 @@ public class TestMimeTypes {
 
     @Test
     public void testBmpDetection() throws Exception {
-        assertType("image/x-ms-bmp", "testBMP.bmp");
-        assertTypeByData("image/x-ms-bmp", "testBMP.bmp");
-        assertTypeByName("image/x-ms-bmp", "x.bmp");
-        assertTypeByName("image/x-ms-bmp", "x.BMP");
-        assertTypeByName("image/x-ms-bmp", "x.dib");
-        assertTypeByName("image/x-ms-bmp", "x.DIB");
+        assertType("image/bmp", "testBMP.bmp");
+        assertTypeByData("image/bmp", "testBMP.bmp");
+        assertTypeByName("image/bmp", "x.bmp");
+        assertTypeByName("image/bmp", "x.BMP");
+        assertTypeByName("image/bmp", "x.dib");
+        assertTypeByName("image/bmp", "x.DIB");
         //false positive check -- contains part of BMP signature
         assertType("text/plain", "testBMPfp.txt");
     }
@@ -630,13 +630,14 @@ public class TestMimeTypes {
 
     @Test
     public void testWmfDetection() throws Exception {
-        assertTypeByName("application/x-msmetafile", "x.wmf");
-        assertTypeByData("application/x-msmetafile", "testWMF.wmf");
-        assertTypeByName("application/x-msmetafile", "x.WMF");
+        assertTypeByName("image/wmf", "x.wmf");
+        assertTypeByData("image/wmf", "testWMF.wmf");
+        assertTypeByName("image/wmf", "x.WMF");
 
-        assertTypeByName("application/x-emf", "x.emf");
-        assertTypeByData("application/x-emf","testEMF.emf");
-        assertTypeByName("application/x-emf", "x.EMF");
+        assertTypeByName("image/emf", "x.emf");
+        assertTypeByData("image/emf", "testEMF.emf");
+        assertTypeByName("image/emf", "x.EMF");
+
         // TODO: Need a test wmz file
         assertTypeByName("application/x-ms-wmz", "x.wmz");
         assertTypeByName("application/x-ms-wmz", "x.WMZ");
@@ -1080,6 +1081,40 @@ public class TestMimeTypes {
         // Name + data gets specific version as well
         assertType("application/x-stata-dta; version=13", "testStataDTA.dta");
     }
+    
+    @Test
+    public void testOneNote() throws Exception {
+        // With name or data we can get the full details
+        assertTypeByName("application/onenote; format=one", "testOneNote.one");
+        assertTypeByData("application/onenote; format=one", "testOneNote.one");
+        
+        // TODO Get sample .onetoc2 and .onepkg files
+    }
+
+    @Test
+    public void testMSWriteFile() throws Exception {
+        //This file is govdocs1's 746255.doc
+        assertTypeByName("application/x-mswrite", "testMSWriteFile.wri");
+        assertTypeByData("application/x-mswrite", "testMSWriteFile.wri");
+    }
+
+    @Test
+    public void testSASProgramming() throws Exception {
+        // Data files we have magic for
+        assertTypeByName("application/x-sas-data-v6", "testSAS.sd2");
+        assertTypeByData("application/x-sas-data-v6", "testSAS.sd2");
+        
+        assertTypeByName("application/x-sas-data", "testSAS.sas7bdat");
+        assertTypeByData("application/x-sas-data", "testSAS.sas7bdat");
+        
+        assertTypeByName("application/x-sas-xport", "testSAS.xpt");
+        assertTypeByData("application/x-sas-xport", "testSAS.xpt");
+        
+        // Programs we don't, so must have mime type to detect
+        assertTypeByName("application/x-sas", "testSAS.sas");
+        assertTypeByData("text/plain", "testSAS.sas");
+    }
+
 
     private void assertText(byte[] prefix) throws IOException {
         assertMagic("text/plain", prefix);

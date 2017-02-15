@@ -18,11 +18,16 @@ package org.apache.tika.parser.microsoft.ooxml;
 
 import static org.apache.tika.sax.XHTMLContentHandler.XHTML;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.poi.POIXMLDocument;
 import org.apache.poi.POIXMLTextExtractor;
@@ -30,13 +35,16 @@ import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.openxml4j.opc.PackageRelationship;
+import org.apache.poi.openxml4j.opc.PackageRelationshipCollection;
 import org.apache.poi.openxml4j.opc.PackageRelationshipTypes;
 import org.apache.poi.openxml4j.opc.TargetMode;
+import org.apache.poi.openxml4j.opc.internal.FileHelper;
 import org.apache.poi.poifs.filesystem.DirectoryNode;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.poifs.filesystem.Ole10Native;
 import org.apache.poi.poifs.filesystem.Ole10NativeException;
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
+import org.apache.poi.xwpf.usermodel.XWPFRelation;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.extractor.EmbeddedDocumentExtractor;
 import org.apache.tika.extractor.EmbeddedDocumentUtil;
@@ -62,6 +70,9 @@ import org.xml.sax.helpers.AttributesImpl;
  * populates the {@link XHTMLContentHandler} object received as parameter.
  */
 public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
+
+
+
     static final String RELATION_AUDIO = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio";
     static final String RELATION_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
     static final String RELATION_OLE_OBJECT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject";
@@ -70,6 +81,15 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
     static final String RELATION_OFFICE_DOCUMENT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument";
     private static final String TYPE_OLE_OBJECT =
             "application/vnd.openxmlformats-officedocument.oleObject";
+
+    protected final static String[] EMBEDDED_RELATIONSHIPS = new String[]{
+            RELATION_AUDIO,
+            RELATION_IMAGE,
+            RELATION_PACKAGE,
+            RELATION_OFFICE_DOCUMENT
+    };
+
+
     private final EmbeddedDocumentExtractor embeddedExtractor;
     protected POIXMLTextExtractor extractor;
 
@@ -104,7 +124,7 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
         buildXHTML(xhtml);
 
         // Now do any embedded parts
-        handleEmbeddedParts(handler);
+        handleEmbeddedParts(handler, metadata);
 
         // thumbnail
         handleThumbnail(handler);
@@ -156,45 +176,23 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
         }
     }
 
-    private void handleEmbeddedParts(ContentHandler handler)
+    private void handleEmbeddedParts(ContentHandler handler, Metadata metadata)
             throws TikaException, IOException, SAXException {
+        Set<String> seen = new HashSet<>();
         try {
             for (PackagePart source : getMainDocumentParts()) {
+                if (source == null) {
+                    //parts can go missing; silently ignore --  TIKA-2134
+                    continue;
+                }
                 for (PackageRelationship rel : source.getRelationships()) {
-
-                    URI sourceURI = rel.getSourceURI();
-                    String sourceDesc;
-                    if (sourceURI != null) {
-                        sourceDesc = getJustFileName(sourceURI.getPath());
-                        if (sourceDesc.startsWith("slide")) {
-                            sourceDesc += "_";
-                        } else {
-                            sourceDesc = "";
+                    try {
+                        handleEmbeddedPart(source, rel, handler, metadata, seen);
+                    } catch (Exception e) {
+                        if (e instanceof SAXException) {
+                            throw e;
                         }
-                    } else {
-                        sourceDesc = "";
-                    }
-                    if (rel.getTargetMode() == TargetMode.INTERNAL) {
-                        PackagePart target;
-
-                        try {
-                            target = source.getRelatedPart(rel);
-                        } catch (IllegalArgumentException ex) {
-                            continue;
-                        }
-
-                        String type = rel.getRelationshipType();
-                        if (RELATION_OLE_OBJECT.equals(type)
-                                && TYPE_OLE_OBJECT.equals(target.getContentType())) {
-                            handleEmbeddedOLE(target, handler, sourceDesc + rel.getId());
-                        } else if (RELATION_AUDIO.equals(type)
-                                || RELATION_IMAGE.equals(type)
-                                || RELATION_PACKAGE.equals(type)
-                                || RELATION_OLE_OBJECT.equals(type)) {
-                            handleEmbeddedFile(target, handler, sourceDesc + rel.getId());
-                        } else if (RELATION_MACRO.equals(type)) {
-                            handleMacros(target, handler);
-                        }
+                        EmbeddedDocumentUtil.recordEmbeddedStreamException(e, metadata);
                     }
                 }
             }
@@ -203,10 +201,60 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
         }
     }
 
+    private void handleEmbeddedPart(PackagePart source, PackageRelationship rel,
+                                    ContentHandler handler, Metadata parentMetadata, Set<String> seen)
+            throws IOException, SAXException, TikaException, InvalidFormatException {
+        URI targetURI = rel.getTargetURI();
+        if (targetURI != null) {
+            if (seen.contains(targetURI.toString())) {
+                return;
+            }
+            seen.add(targetURI.toString());
+        }
+        URI sourceURI = rel.getSourceURI();
+        String sourceDesc;
+        if (sourceURI != null) {
+            sourceDesc = getJustFileName(sourceURI.getPath());
+            if (sourceDesc.startsWith("slide")) {
+                sourceDesc += "_";
+            } else {
+                sourceDesc = "";
+            }
+        } else {
+            sourceDesc = "";
+        }
+        if (rel.getTargetMode() != TargetMode.INTERNAL) {
+            return;
+        }
+            PackagePart target;
+
+            try {
+                target = source.getRelatedPart(rel);
+            } catch (IllegalArgumentException ex) {
+                return;
+            }
+
+            String type = rel.getRelationshipType();
+            if (RELATION_OLE_OBJECT.equals(type)
+                    && TYPE_OLE_OBJECT.equals(target.getContentType())) {
+                handleEmbeddedOLE(target, handler, sourceDesc + rel.getId(), parentMetadata);
+            } else if (RELATION_AUDIO.equals(type)
+                    || RELATION_IMAGE.equals(type)
+                    || RELATION_PACKAGE.equals(type)
+                    || RELATION_OLE_OBJECT.equals(type)) {
+                handleEmbeddedFile(target, handler, sourceDesc + rel.getId());
+            } else if (RELATION_MACRO.equals(type)) {
+                handleMacros(target, handler);
+            }
+        }
+
+
+
+
     /**
      * Handles an embedded OLE object in the document
      */
-    private void handleEmbeddedOLE(PackagePart part, ContentHandler handler, String rel)
+    private void handleEmbeddedOLE(PackagePart part, ContentHandler handler, String rel, Metadata parentMetadata)
             throws IOException, SAXException {
         // A POIFSFileSystem needs to be at least 3 blocks big to be valid
         if (part.getSize() >= 0 && part.getSize() < 512 * 3) {
@@ -214,8 +262,15 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
             return;
         }
 
+        InputStream is = part.getInputStream();
         // Open the POIFS (OLE2) structure and process
-        POIFSFileSystem fs = new POIFSFileSystem(part.getInputStream());
+        POIFSFileSystem fs = null;
+        try {
+            fs = new POIFSFileSystem(part.getInputStream());
+        } catch (Exception e) {
+            EmbeddedDocumentUtil.recordEmbeddedStreamException(e, parentMetadata);
+            return;
+        }
         TikaInputStream stream = null;
         try {
             Metadata metadata = new Metadata();
@@ -269,6 +324,8 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
             // There was no CONTENTS entry, so skip this part
         } catch (Ole10NativeException e) {
             // Could not process an OLE 1.0 entry, so skip this part
+        } catch (IOException e ) {
+            EmbeddedDocumentUtil.recordEmbeddedStreamException(e, parentMetadata);
         } finally {
             if (fs != null) {
                 fs.close();
@@ -334,5 +391,62 @@ public abstract class AbstractOOXMLExtractor implements OOXMLExtractor {
         } catch (IOException e) {
             throw new TikaException("Broken OOXML file", e);
         }
+    }
+
+    /**
+     * This is used by the SAX docx and pptx decorators to load hyperlinks and
+     * other linked objects
+     *
+     * @param bodyPart
+     * @return
+     */
+    protected Map<String, String> loadLinkedRelationships(PackagePart bodyPart, boolean includeInternal, Metadata metadata) {
+        Map<String, String> linkedRelationships = new HashMap<>();
+        try {
+            PackageRelationshipCollection prc = bodyPart.getRelationshipsByType(XWPFRelation.HYPERLINK.getRelation());
+            for (int i = 0; i < prc.size(); i++) {
+                PackageRelationship pr = prc.getRelationship(i);
+                if (pr == null) {
+                    continue;
+                }
+                if (! includeInternal && TargetMode.INTERNAL.equals(pr.getTargetMode())) {
+                    continue;
+                }
+                String id = pr.getId();
+                String url = (pr.getTargetURI() == null) ? null : pr.getTargetURI().toString();
+                if (id != null && url != null) {
+                    linkedRelationships.put(id, url);
+                }
+            }
+
+            for (String rel : EMBEDDED_RELATIONSHIPS) {
+
+                prc = bodyPart.getRelationshipsByType(rel);
+                for (int i = 0; i < prc.size(); i++) {
+                    PackageRelationship pr = prc.getRelationship(i);
+                    if (pr == null) {
+                        continue;
+                    }
+                    String id = pr.getId();
+                    String uriString = (pr.getTargetURI() == null) ? null : pr.getTargetURI().toString();
+                    String fileName = uriString;
+                    if (pr.getTargetURI() != null) {
+                        try {
+                            fileName = FileHelper.getFilename(new File(fileName));
+                        } catch (Exception e) {
+                            fileName = uriString;
+                        }
+                    }
+                    if (id != null) {
+                        fileName = (fileName == null) ? "" : fileName;
+                        linkedRelationships.put(id, fileName);
+                    }
+                }
+            }
+
+        } catch (InvalidFormatException e) {
+            EmbeddedDocumentUtil.recordEmbeddedStreamException(e, metadata);
+        }
+        return linkedRelationships;
     }
 }

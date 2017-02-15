@@ -16,6 +16,7 @@
  */
 package org.apache.tika;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -85,9 +86,22 @@ public abstract class TikaTest {
        return stream;
    }
 
-    public static void assertContains(String needle, String haystack) {
-       assertTrue(needle + " not found in:\n" + haystack, haystack.contains(needle));
+    public static void assertContainsCount(String needle, String haystack, int targetCount) {
+        int i = haystack.indexOf(needle);
+        int count = 0;
+        while (i > -1) {
+            count++;
+            i = haystack.indexOf(needle, i+1);
+        }
+        assertEquals("found "+count +" but should have found: "+targetCount,
+                targetCount, count);
     }
+
+
+    public static void assertContains(String needle, String haystack) {
+        assertTrue(needle + " not found in:\n" + haystack, haystack.contains(needle));
+    }
+
     public static <T> void assertContains(T needle, Collection<? extends T> haystack) {
         assertTrue(needle + " not found in:\n" + haystack, haystack.contains(needle));
     }
@@ -159,6 +173,10 @@ public abstract class TikaTest {
         return getXML(filePath, new AutoDetectParser(), parseContext);
     }
 
+    protected XMLResult getXML(String filePath, Metadata metadata, ParseContext parseContext) throws Exception {
+        return getXML(getResourceAsStream("/test-documents/"+filePath), new AutoDetectParser(), metadata, parseContext);
+    }
+
     protected XMLResult getXML(String filePath, Metadata metadata) throws Exception {
         return getXML(getResourceAsStream("/test-documents/" + filePath), new AutoDetectParser(), metadata, null);
     }
@@ -178,7 +196,6 @@ public abstract class TikaTest {
     protected XMLResult getXML(InputStream input, Parser parser, Metadata metadata, ParseContext context) throws Exception {
       if (context == null) {
           context = new ParseContext();
-          context.set(Parser.class, parser);
       }
 
       try {

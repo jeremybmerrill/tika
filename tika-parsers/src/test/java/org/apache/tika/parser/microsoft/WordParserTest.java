@@ -19,6 +19,7 @@ package org.apache.tika.parser.microsoft;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.InputStream;
 import java.util.Arrays;
@@ -533,6 +534,36 @@ public class WordParserTest extends TikaTest {
 
         List<Metadata> metadataList = getRecursiveMetadata("testWORD_macros.doc");
         assertContainsAtLeast(minExpected, metadataList);
+    }
+
+    @Test
+    public void testDeleted() throws Exception {
+        //test classic behavior
+        String xml = getXML("testWORD_2006ml.doc").xml;
+        assertNotContained("frog", xml);
+
+        //moveFrom is deleted in .doc files
+        assertContainsCount("Second paragraph", xml, 1);
+        //now test inclusion of deleted text
+        ParseContext context = new ParseContext();
+        OfficeParserConfig officeParserConfig = new OfficeParserConfig();
+        officeParserConfig.setIncludeDeletedContent(true);
+        context.set(OfficeParserConfig.class, officeParserConfig);
+        XMLResult r = getXML("testWORD_2006ml.doc", context);
+        assertContains("frog", r.xml);
+
+        //moveFrom is deleted in .doc files
+        assertContainsCount("Second paragraph", r.xml, 2);
+    }
+
+    @Test
+    public void testProtected() throws Exception {
+        try {
+            getXML("testWORD_protected_passtika.doc");
+            fail("should have thrown encrypted document exception");
+        } catch (org.apache.tika.exception.EncryptedDocumentException e) {
+
+        }
     }
 }
 
