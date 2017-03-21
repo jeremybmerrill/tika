@@ -64,6 +64,11 @@ public class GoogleTranslator extends AbstractTranslator {
 					.getResourceAsStream(
 							"translator.google.properties"));
 			this.apiKey = config.getProperty("translator.client-secret");
+			if (this.apiKey.equals(DEFAULT_KEY)){
+				if(System.getenv("GOOGLE_TRANSLATE_API_KEY") != null){
+					this.apiKey = System.getenv("GOOGLE_TRANSLATE_API_KEY");
+				}
+			}
 			if (this.apiKey.equals(DEFAULT_KEY))
 				this.isAvailable = false;
 		} catch (Exception e) {
